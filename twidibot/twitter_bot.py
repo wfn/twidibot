@@ -26,17 +26,6 @@ from tweepy.models import Status
 from twidibot import config, bridge_getter
 from twidibot.logger import log
 
-def stub_log(level, fmt, *args):
-  """TODO: use python logger to actually log things.
-
-  Will probably log to stdout/stderr and file by default.
-
-  Lazy placeholder.
-  Remove later.
-  """
-
-  print '[log placeholder]: [%s]' % level, fmt % args
-
 class TwitterBotStreamListener(tweepy.StreamListener):
   """Listener for twitter's Streaming API."""
 
