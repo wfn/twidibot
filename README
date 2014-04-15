@@ -17,6 +17,7 @@ Installation:
 -------------------
 
 See [INSTALL](./INSTALL.md)
+
 You'll need to create a "twidibot/config.py", possibly from [sample_config.py]
 (./twidibot/sample_config.py).
 
