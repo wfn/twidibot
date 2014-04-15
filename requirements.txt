@@ -1,0 +1,9 @@
+Twisted==13.2.0
+argparse==1.2.1
+distribute==0.6.24
+oauth==1.0.1
+simplejson==3.4.0
+tweepy==2.3
+twittytwister==0.1.1
+wsgiref==0.1.2
+zope.interface==4.1.1

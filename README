@@ -1,0 +1,31 @@
+twidibot
+================
+
+Description:
+-------------------
+
+Twitter bot PoC, with the intention of becoming a new BridgeDB Distributor.
+
+Includes ideas and/or code for abstracting things in ways that would isolate /
+separate certain functionalities in BridgeDB.
+
+Meaningful README when there's more meaningful code.
+
+[Link to initial proposal document which includes design goes here.]
+
+Installation:
+-------------------
+
+See [INSTALL](./INSTALL.md)
+You'll need to create a "twidibot/config.py", possibly from [sample_config.py]
+(./twidibot/sample_config.py).
+
+Running:
+-------------------
+
+"Ha."
+
+Well:
+
+`python quick_run.py` should be able to run the thing as currently intended.
+The bot PoC functionality should then work.

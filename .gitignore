@@ -1,0 +1,10 @@
+*.pyc
+*.un~
+twidibot/config.py
+
+venv_*/
+tmp/
+tweepy/
+twitty-twister/
+wfntest*.txt
+*.log
