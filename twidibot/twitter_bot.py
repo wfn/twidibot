@@ -26,6 +26,7 @@ from tweepy.models import Status
 from twidibot import config, bridge_getter
 from twidibot.logger import log
 
+
 class TwitterBotStreamListener(tweepy.StreamListener):
   """Listener for twitter's Streaming API."""
 
@@ -90,9 +91,9 @@ class TwitterBotStreamListener(tweepy.StreamListener):
 
     #log.debug('Got event: %s', status)
 
-    if str(status.event) == 'follow': # XXX make sure tweepy's given
-                                      # 'status.event' unicode string can
-                                      # always be safely converted to ascii.
+    if str(status.event) == 'follow':  # XXX make sure tweepy's given
+                                       # 'status.event' unicode string can
+                                       # always be safely converted to ascii.
       self.bot.handleFollowEvent(status)
     return
 
@@ -148,9 +149,11 @@ class TwitterBotStreamListener(tweepy.StreamListener):
     """Called when twitter sends a disconnect notice
 
     Disconnect codes are listed here:
-    https://dev.twitter.com/docs/streaming-apis/messages#Disconnect_messages_disconnect
+    https://dev.twitter.com/docs/streaming-apis/messages
+        #Disconnect_messages_disconnect
     """
     return
+
 
 class TwitterBotState(object):
   """Separate component holding bot-user-interaction state.
@@ -170,6 +173,7 @@ class TwitterBotState(object):
     # *or* discard it & possibly get rid of even this.
 
     self.users = dict()
+
 
 class TwitterBot(object):
   """Main interface between the stateful listener and Twitter APIs.
@@ -250,7 +254,7 @@ class TwitterBot(object):
     log.info('Subscribed to relevant streams via Streaming API')
 
   def handleFollowEvent(self, event):
-    user_id = event.source['id'] # 'id' is unique big int
+    user_id = event.source['id']  # 'id' is unique big int
 
     if user_id != self.bot_info.id:
       user = self.api.get_user(id=user_id)
@@ -260,8 +264,8 @@ class TwitterBot(object):
       # the following line *blocks* the thread that we care about.
       # we should not do this, ever.
       # as long as we're just testing with a few cat accounts, it's ok.
-      time.sleep(config.WAIT_TIME_AFTER_FOLLOW) # TODO: use sched.scheduler,
-                                                # or threading.Timer (or sth.)
+      time.sleep(config.WAIT_TIME_AFTER_FOLLOW)  # TODO: use sched.scheduler,
+                                                 # or threading.Timer (or sth)
 
       # previously we just sent some bridges automatically, but now we send
       # an informative message instead. I guess this is good, but maybe it'd
@@ -276,8 +280,8 @@ class TwitterBot(object):
     sender_id = status.direct_message['sender_id']
     message = status.direct_message['text'].strip().lower()
 
-    if not ('get' in message and 'bridges' in message): # this is.. overly
-      self.sendMessage(sender_id, 'Send a direct '      # simplistic, maybe
+    if not ('get' in message and 'bridges' in message):  # this is.. overly
+      self.sendMessage(sender_id, 'Send a direct '       # simplistic, maybe
           'message with the words "get bridges" somewhere in it.')
       return False
 

@@ -31,6 +31,7 @@ Generic class ->
        'distributed distributors' that are isolated from core BridgeDB.
 """
 
+
 class BridgeGetter(object):
   """A generic class for a bridge-getter that gets bridges from bridgedb.
 
@@ -44,6 +45,7 @@ class BridgeGetter(object):
   """
   pass
 
+
 class BridgeGetterStub(BridgeGetter):
   """A bridge-getter that 'just gives something so we can run the thing.'
 
@@ -54,6 +56,7 @@ class BridgeGetterStub(BridgeGetter):
   def getBridges(self, user_id, **kw):
     return "Here's a string for %s, replace me with something better "\
         "please!" % str(user_id)
+
 
 class TwitterBotBridgeGetter(BridgeGetterStub):
   """bridge-getter for the twitter bot distributor.
@@ -71,16 +74,18 @@ class TwitterBotBridgeGetter(BridgeGetterStub):
     fake_string = ''
     for transport in transports:
       fake_string += 'some-%s-bridge\n' % transport
-    for i in range(len(transports), 3): # everything is ugly here
+    for i in range(len(transports), 3):  # everything is ugly here
       fake_string += 'some-bridge\n'
     return "Some bridges for you, %s:\n%s" % (user_info['name'], fake_string)
+
 
 class FakeBridgeGetter(BridgeGetter):
   """A bridge-getter that 'gets' fake bridge descriptors, and gives them
   as if for real, to whoever's asking.
   """
-  pass # XXX Either write this up, or implement the whole thing, and remove
-       #     this (though it would probably be ideal for tests. Probably.)
+  pass  # XXX Either write this up, or implement the whole thing, and remove
+        #     this (though it would probably be ideal for tests. Probably.)
+
 
 if __name__ == '__main__':
   pass
