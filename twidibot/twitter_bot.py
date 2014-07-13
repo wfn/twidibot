@@ -16,6 +16,7 @@ the easiest way to fulfil main deliverable, but we should also think ahead.))
 """
 
 import sys
+import signal
 import json
 import time
 from pprint import pprint
@@ -25,6 +26,9 @@ from tweepy.models import Status
 
 from twidibot import config, bridge_getter
 from twidibot.logger import log
+from twidibot.bot_storage import StorageController
+from twidibot.bot_state import TwitterBotState
+from twidibot.churn_control import ChurnController
 
 
 class TwitterBotStreamListener(tweepy.StreamListener):
@@ -32,8 +36,7 @@ class TwitterBotStreamListener(tweepy.StreamListener):
 
   def __init__(self, bot, api=None):
     self.bot = bot
-
-    # do we need to do anything else here?
+    self.processing_data = False
 
     super(TwitterBotStreamListener, self).__init__(api)
 
@@ -49,6 +52,8 @@ class TwitterBotStreamListener(tweepy.StreamListener):
 
     Return False to stop stream and close connection.
     """
+
+    self.processing_data = True
 
     data = json.loads(raw_data)
 
@@ -79,6 +84,8 @@ class TwitterBotStreamListener(tweepy.StreamListener):
       # log to debug?
       log.debug('TwitterBotStreamListener::on_data(): got event/stream data of'
           ' unknown type. Raw data follows:\n%s', data)
+
+    self.processing_data = False
 
   def on_status(self, status):
     """Called when a new status arrives"""
@@ -155,26 +162,6 @@ class TwitterBotStreamListener(tweepy.StreamListener):
     return
 
 
-class TwitterBotState(object):
-  """Separate component holding bot-user-interaction state.
-
-  Have this be isolated from the rest, because we may want to be able to
-  pickle it / persist it one way or another, and so on. Isolation makes sense.
-
-  XXX Write this in a way that treats all data herein as sensitive.
-      (i.e. at the very least think this over carefully.)
-  XXX Consider implementing proper getters/setters for this, etc etc.
-
-  This will probably be just a placeholder for now.
-  """
-
-  def __init__(self):
-    # TODO: merge dirty dirty branch involving user state,
-    # *or* discard it & possibly get rid of even this.
-
-    self.users = dict()
-
-
 class TwitterBot(object):
   """Main interface between the stateful listener and Twitter APIs.
 
@@ -203,12 +190,55 @@ class TwitterBot(object):
     for key, default in self.default_access_config.iteritems():
       self.access_config[key] = kw.get(key, default)
 
-    self.state = TwitterBotState()
+    self.storage_controller = StorageController()
+
+    # TwitterBotState initializes particular storage handlers,
+    # and attaches them to the main storage controller:
+    self.state = TwitterBotState(self.storage_controller)
+
+    # ChurnController doesn't care about storage in itself; we just pass in
+    # the respective container:
+    self.churn_controller = ChurnController(self.state.user_access_times)
 
     # additional auth (or hashring handover from bridgedb.Distributor)
     # will likely be needed here, etc.:
     self.bridge_getter = bridge_getter.TwitterBotBridgeGetter(
         known_pt_types=config.KNOWN_PT_TYPES)
+
+    self.setSignalHandlers()
+
+  def setSignalHandlers(self):
+    """Set up relevant SIG* handlers for the bot.
+
+    Note: if we want to handle some specific signal and not exit after
+    catching it, we may need to store the original CPython handler (signified
+    by signal.SIG_DFL), and restore it after handling the signal in question.
+    For now, we'll only care about signals after which the program does exit.
+    """
+
+    # for now, we'll only handle SIGTERM. it might make sense to handle SIGINT
+    # as well, though.
+
+    signal.signal(signal.SIGTERM, self.handleSIGTERM)
+    log.debug("SIGTERM handler is set.")
+
+  def handleSIGTERM(self, sig_number, stack_frame):
+    """Callback function called upon SIGTERM"""
+
+    log.info("TwitterBot::handleSIGTERM(): caught SIGTERM signal.")
+
+    log.info("Stopping bot listener.")
+    self.listener.running = False
+    while self.listener.processing_data:
+      log.info("Waiting for TwitterBotStreamListener to finish processing a "
+          "data request/package")
+      time.sleep(0.5)
+
+    log.info("Closing down storage controller.")
+    self.storage_controller.closeAll()
+
+    log.info("Exiting program.")
+    sys.exit(0)
 
   def authenticate(self, auth=None):
     """Authenticate to Twitter API, get API handle, and remember it."""
@@ -296,6 +326,24 @@ class TwitterBot(object):
       self.sendMessage(sender_id, 'You might have tried specifying a '
           'transport I do not support. Sending you non-PT bridges anyway.')
 
+    # do our own churn control, before any possible interaction with bridgedb:
+    if config.DO_SINGLE_USER_CHURN_CONTROL:
+      screen_name = status.direct_message['sender_screen_name']
+      if not self.churn_controller.canGiveBridgesToUser(screen_name,
+          expiry_time=config.MIN_REREQUEST_TIME):
+
+        log.info("Not providing bridges to %s because of set churn rate.",
+            screen_name)
+        if config.NOTIFY_USERS_ABOUT_CHURN:
+          # XXX should we tell users about how long they should wait before
+          # XXX being able to get bridges again?
+          self.sendMessage(sender_id, "Please wait a while before requesting "
+              "bridges again!")
+        return
+
+      timestamp = self.churn_controller.getCurrentTimestamp()
+      self.churn_controller.addOrUpdateUser(screen_name, timestamp)
+
     str_bridges = self.bridge_getter.getBridges(sender_id,
         status.direct_message['sender'], transports)
     if str_bridges:
@@ -310,7 +358,7 @@ class TwitterBot(object):
       # XXX this is neither DEBUG, nor safe to log. this is PoC stuff.
       # TODO: an actual scrubbing function which uses config.SAFE_LOG
       log.debug('Have no bridge data to give to %s',
-          status.direct_message.sender_screen_name)
+          status.direct_message['sender_screen_name'])
 
   def sendMessage(self, target_id, message):
     # this is quick and ugly. primary splits (if needed) at newlines.
