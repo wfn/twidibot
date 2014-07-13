@@ -39,6 +39,8 @@ class Config(object):
   DO_SINGLE_USER_CHURN_CONTROL = True
   NOTIFY_USERS_ABOUT_CHURN = True
 
+  DO_CHALLENGE_RESPONSE = True
+
 
 class DevelopmentConfig(Config):
   """Development-specific configuration"""

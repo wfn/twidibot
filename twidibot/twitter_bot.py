@@ -29,6 +29,7 @@ from twidibot.logger import log
 from twidibot.bot_storage import StorageController
 from twidibot.bot_state import TwitterBotState
 from twidibot.churn_control import ChurnController
+from twidibot.challenge_response import BogusTextBasedChallengeResponseSystem
 
 
 class TwitterBotStreamListener(tweepy.StreamListener):
@@ -200,6 +201,13 @@ class TwitterBot(object):
     # the respective container:
     self.churn_controller = ChurnController(self.state.user_access_times)
 
+    # likewise with challenge response; we only pass the respective container:
+    if config.DO_CHALLENGE_RESPONSE:
+      self.challenge_response = BogusTextBasedChallengeResponseSystem(
+          self.state.user_challenges)
+    else:
+      self.challenge_response = None
+
     # additional auth (or hashring handover from bridgedb.Distributor)
     # will likely be needed here, etc.:
     self.bridge_getter = bridge_getter.TwitterBotBridgeGetter(
@@ -309,6 +317,29 @@ class TwitterBot(object):
   def handleDirectMessage(self, status):
     sender_id = status.direct_message['sender_id']
     message = status.direct_message['text'].strip().lower()
+    screen_name = status.direct_message['sender_screen_name']
+
+    # FIXME <- move to ``BridgeRequest``s / merge nonbroken things here.
+    if config.DO_CHALLENGE_RESPONSE:
+      if self.challenge_response.userHasAChallenge(screen_name):
+        if self.challenge_response.checkUserAnswer(screen_name, message):
+          # process cached request here ->
+          self.sendMessage(sender_id, "Correct! (Response with bridges goes "
+              "here.)")
+          return
+        else:
+          self.sendMessage(sender_id, "The answer to the challenge presented "
+              "is incorrect; here's another challenge:")
+
+      # either there wasn't a challenge ready, or we need another one:
+      challenge = self.challenge_response.generateChallengeForUser(
+          screen_name, status.direct_message['sender'])
+      # assume text-based CR here:
+      self.sendMessage(sender_id, challenge)
+      return
+
+    # (cleanest way to incorporate bridge requests into a CR system is via
+    # ``BridgeRequests`` together with ``bot_state``.)
 
     if not ('get' in message and 'bridges' in message):  # this is.. overly
       self.sendMessage(sender_id, 'Send a direct '       # simplistic, maybe
@@ -328,7 +359,6 @@ class TwitterBot(object):
 
     # do our own churn control, before any possible interaction with bridgedb:
     if config.DO_SINGLE_USER_CHURN_CONTROL:
-      screen_name = status.direct_message['sender_screen_name']
       if not self.churn_controller.canGiveBridgesToUser(screen_name,
           expiry_time=config.MIN_REREQUEST_TIME):
 
