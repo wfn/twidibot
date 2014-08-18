@@ -3,7 +3,15 @@
 
 import time
 import hashlib
-import random # XXX python seeds this when needed; seed explicitly?
+import random
+import cookielib
+
+from twisted.web.client import Agent, CookieAgent
+from twisted.internet import reactor
+from twisted.internet.defer import Deferred
+from twisted.internet.protocol import Protocol
+from twisted.web.http_headers import Headers
+from twisted.internet.ssl import ClientContextFactory
 
 from twidibot import config
 from twidibot.logger import log
@@ -139,6 +147,78 @@ class ChallengeResponseSystem(object):
     return time.time()
 
 
+class WebClientContextFactory(ClientContextFactory):
+  """Context factory for Twisted SSL.
+
+  TODO use isis' certificate checking code here.
+  """
+
+  def getContext(self, hostname, port):
+    return ClientContextFactory.getContext(self)
+
+
+class ResponseBodyHolder(Protocol):
+  """Holds a response body of a Twisted request."""
+
+  def __init__(self, deferred, callback):
+    self.body = None
+    self.deferred = deferred
+    self.callback = callback
+
+  def dataReceived(self, bReceived):
+    if not self.body:
+      self.body = bReceived
+    else:
+      self.body += bReceived
+    if self.callback:
+      self.callback(bReceived)
+
+  def connectionLost(self, reason):
+    self.deferred.callback(None)
+
+
+class TwitterReactorChallengeResponse(ChallengeResponse):
+  def __init__(self, user_handle, user_data):
+    self._challenge = ChallengeDataHolder()
+    self._response = ResponseDataHolder()
+
+    #self._deferreds = list()
+    self._deferred = None
+    self._cookieJar = cookiejar.CookieJar() # we'll use the same jar for all
+                                            # requests
+    self._contextFactory = WebClientContextFactory()
+    self._pool = HTTPConnectionPool(reactor)
+
+    # make ourselves a web agent which also handles cookies and does
+    # persistent connections:
+    self._agent = CookieAgent(
+        Agent(reactor, self._contextFactory, pool=self._pool),
+        self._cookieJar)
+
+    #self.requestPOST("https://...", ...)
+
+  def getChallenge(self):
+    #deferred = self.requestGET("https://...")
+    # extract challenge, store in self._challenge
+    pass
+
+  def getResponse(self):
+    pass
+
+  def requestGET(self, url):
+    #self._deferreds.append(self._agent.request("GET", url))
+    self._deferred = self._agent.request("GET", url)
+    self._deferred.addCallback(self.doneRequest)
+    return self._deferred
+
+  def doneRequest(self, response):
+    finished = Deferred()
+    response.deliverBody(ResponseBodyHolder(finished, self.someDataReceved))
+
+  def someDataReceived(self, bReceived):
+    pass # we probably don't want to look at data until response is complete
+
+
 number_units = ("zero", "one", "two", "three", "four", "five", "six", "seven",
                 "eight", "nine", "ten", "eleven", "twelve", "thirteen",
                 "fourteen", "fifteen", "sixteen", "seventeen", "eighteen",
@@ -174,6 +254,15 @@ class BogusTextBasedChallengeResponseSystem(ChallengeResponseSystem):
 
   STORE_RESPONSES_HASHED = True
   CR_object_class = BogusTextBasedChallengeResponse
+
+
+class TwitterReactorBasedChallengeResponseSystem(ChallengeResponseSystem):
+  """CR system that uses Twisted-reactor-based flow to get/deliver C/R over
+  twisted.web requests.
+  """
+
+  STORE_RESPONSES_HASHED = True
+  CR_object_class = TwitterReactorChallengeResponse
 
 
 if __name__ == '__main__':

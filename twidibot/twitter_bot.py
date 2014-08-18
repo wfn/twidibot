@@ -81,8 +81,6 @@ class TwitterBotStreamListener(tweepy.StreamListener):
       if self.on_disconnect(data['disconnect']) is False:
         return False
     else:
-      # we really are ok to receive unknown stream/event types.
-      # log to debug?
       log.debug('TwitterBotStreamListener::on_data(): got event/stream data of'
           ' unknown type. Raw data follows:\n%s', data)
 
@@ -275,7 +273,6 @@ class TwitterBot(object):
     if self.api:
       log.info('Authenticated to Twitter and got the RESTful API handle')
       self.bot_info = self.api.me()
-      #api.update_status('hello world!') # push a mighty status update
 
   def subscribeToStreams(self):
     """Subscribe to relevant streams in the Streaming API."""
